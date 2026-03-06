@@ -2503,8 +2503,6 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
         outbounds.PushBack(direct, allocator);
         auto reject = buildObject(allocator, "type", "block", "tag", "REJECT");
         outbounds.PushBack(reject, allocator);
-        auto dns = buildObject(allocator, "type", "dns", "tag", "dns-out");
-        outbounds.PushBack(dns, allocator);
     }
 
     for (Proxy &x : nodes)
@@ -2707,31 +2705,26 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
                 if (!x.HeartbeatInterval.empty())
                     proxy.AddMember("heartbeat", rapidjson::StringRef(x.HeartbeatInterval.c_str()), allocator);
 
-                rapidjson::Value tls(rapidjson::kObjectType);
-                tls.AddMember("enabled", true, allocator);
-                if (!scv.is_undef())
-                    tls.AddMember("insecure", scv.get(), allocator);
-                if (!x.Alpn.empty())
-                {
-                    rapidjson::Value alpn(rapidjson::kArrayType);
-                    alpn.PushBack(rapidjson::StringRef(x.Alpn[0].c_str()), allocator);
-                    tls.AddMember("alpn", alpn, allocator);
-                }
-
                 if (!x.UdpRelayMode.empty())
                     proxy.AddMember("udp_relay_mode", rapidjson::StringRef(x.UdpRelayMode.c_str()), allocator);
 
                 if (!x.CongestionController.empty())
                     proxy.AddMember("congestion_controller", rapidjson::StringRef(x.CongestionController.c_str()), allocator);
 
-                if (!x.SNI.empty())
-                    proxy.AddMember("sni", rapidjson::StringRef(x.SNI.c_str()), allocator);
-
                 if (!scv.is_undef())
                 {
                     rapidjson::Value tls(rapidjson::kObjectType);
                     tls.AddMember("enabled", true, allocator);
                     tls.AddMember("insecure", scv.get(), allocator);
+                    if (!x.SNI.empty())
+                        tls.AddMember("server_name", rapidjson::StringRef(x.SNI.c_str()), allocator);
+                    if (!x.Alpn.empty())
+                    {
+                        rapidjson::Value alpn(rapidjson::kArrayType);
+                        alpn.PushBack(rapidjson::StringRef(x.Alpn[0].c_str()), allocator);
+                        tls.AddMember("alpn", alpn, allocator);
+                    }
+
                     proxy.AddMember("tls", tls, allocator);
                 }
 
@@ -2743,9 +2736,6 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
 
                 if (!x.Password.empty())
                     proxy.AddMember("password", rapidjson::StringRef(x.Password.c_str()), allocator);
-
-                if (!x.SNI.empty())
-                    proxy.AddMember("sni", rapidjson::StringRef(x.SNI.c_str()), allocator);
 
                 if (x.IdleSessionCheckInterval)
                     proxy.AddMember("idle_session_check_interval", rapidjson::Value(formatSingBoxInterval(x.IdleSessionCheckInterval).c_str(), allocator), allocator);
@@ -2761,6 +2751,8 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
                     tls.AddMember("insecure", scv.get(), allocator);
                 if (!x.Fingerprint.empty())
                     tls.AddMember("insecure", true, allocator);
+                if (!x.SNI.empty())
+                    tls.AddMember("server_name", rapidjson::StringRef(x.SNI.c_str()), allocator);
                 if (!x.Alpn.empty()) {
                     rapidjson::Value alpn(rapidjson::kArrayType);
                     for (const auto& item : x.Alpn)
@@ -2781,9 +2773,6 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
                 if (!x.UUID.empty())
                     proxy.AddMember("uuid", rapidjson::StringRef(x.UUID.c_str()), allocator);
 
-                if (!x.SNI.empty())
-                    proxy.AddMember("sni", rapidjson::StringRef(x.SNI.c_str()), allocator);
-
                 if (x.XTLS == 2) {
                     proxy.AddMember("flow", rapidjson::StringRef("xtls-rprx-vision"), allocator);
                 } else if (!x.Flow.empty()) {
@@ -2792,6 +2781,9 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
                 // TLS 配置
                 rapidjson::Value tls(rapidjson::kObjectType);
                 tls.AddMember("enabled", true, allocator);
+
+                if (!x.SNI.empty())
+                    tls.AddMember("server_name", rapidjson::StringRef(x.SNI.c_str()), allocator);
 
                 if (!scv.is_undef())
                     tls.AddMember("insecure", scv.get(), allocator);
@@ -2848,12 +2840,14 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
             default:
                 continue;
         }
-        if (x.TLSSecure)
+        if (x.TLSSecure && !proxy.HasMember("tls"))
         {
             rapidjson::Value tls(rapidjson::kObjectType);
             tls.AddMember("enabled", true, allocator);
             if (!x.ServerName.empty())
                 tls.AddMember("server_name", rapidjson::StringRef(x.ServerName.c_str()), allocator);
+            else if (!x.SNI.empty())
+                tls.AddMember("server_name", rapidjson::StringRef(x.SNI.c_str()), allocator);
             else if (!x.Host.empty())
                 tls.AddMember("server_name", rapidjson::StringRef(x.Host.c_str()), allocator);
             tls.AddMember("insecure", buildBooleanValue(scv), allocator);
